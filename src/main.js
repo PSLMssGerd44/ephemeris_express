@@ -1,0 +1,250 @@
+/**
+ * Ephemeris Express — app wiring.
+ *
+ * Performance architecture: Sun/Earth vectors in the Moon's body-fixed frame
+ * are SITE-INDEPENDENT, so the time-series over the analysis window is
+ * computed once and cached; evaluating any site against it is just a frame
+ * rotation (microseconds). That's what makes site comparison instant.
+ */
+import './styles.css';
+import { moonFixedState } from './physics/ephemeris.js';
+import { makeSite, azEl } from './physics/topo.js';
+import { visibilityWindows, windowMetrics, nextEvents, altitudeAboveHorizon } from './physics/events.js';
+import { SITES } from './data/sites.js';
+import { Scene3D } from './ui/scene3d.js';
+import { Timeline } from './ui/timeline.js';
+import { drawSkyPlot } from './ui/skyplot.js';
+import { fmtDeg, fmtDur, fmtUTC, msToLocalInput, localInputToMs } from './ui/format.js';
+
+const WINDOW_DAYS = 30;
+const SAMPLE_MIN = 20;
+
+// ---------- state ----------
+const state = {
+  site: SITES[0],
+  dateMs: Date.now(),
+  playing: false,
+  speed: 21600, // sim seconds per real second
+};
+
+// ---------- site-independent ephemeris cache ----------
+let cache = null; // { t0, t1, times:[], sun:[[x,y,z]...], earth:[[..]] }
+function ensureCache() {
+  const half = (WINDOW_DAYS / 2) * 86400e3;
+  // recenter when the cursor drifts into the outer quarters of the window
+  if (cache && state.dateMs > cache.t0 + half / 2 && state.dateMs < cache.t1 - half / 2) return false;
+  const t0 = state.dateMs - half, t1 = state.dateMs + half;
+  const step = SAMPLE_MIN * 60e3;
+  const times = [], sun = [], earth = [];
+  for (let t = t0; t <= t1; t += step) {
+    const st = moonFixedState(new Date(t));
+    times.push(t); sun.push(st.sunKm); earth.push(st.earthKm);
+  }
+  cache = { t0, t1, times, sun, earth };
+  return true;
+}
+
+// ---------- per-site derived data ----------
+let derived = null; // { siteId, series, sunWindows, earthWindows, sunMetrics, earthMetrics, next }
+function recomputeSite() {
+  const s = state.site;
+  const site = makeSite(s.lat, s.lon);
+  ensureCache();
+  const sunEl = [], earthEl = [];
+  for (let i = 0; i < cache.times.length; i++) {
+    sunEl.push(azEl(site, cache.sun[i]).elDeg);
+    earthEl.push(azEl(site, cache.earth[i]).elDeg);
+  }
+  const sunWindows = visibilityWindows(site, 'sun', cache.t0, cache.t1);
+  const earthWindows = visibilityWindows(site, 'earth', cache.t0, cache.t1);
+  derived = {
+    siteKey: `${s.lat},${s.lon}`,
+    site,
+    series: { t0: cache.t0, t1: cache.t1, times: cache.times, sunEl, earthEl },
+    sunMetrics: windowMetrics(sunWindows, cache.t0, cache.t1),
+    earthMetrics: windowMetrics(earthWindows, cache.t0, cache.t1),
+    nextSun: nextEvents(site, 'sun', state.dateMs, { horizonDays: 60 }),
+    nextEarth: nextEvents(site, 'earth', state.dateMs, { horizonDays: 60 }),
+  };
+}
+
+// ---------- DOM ----------
+const el = (id) => document.getElementById(id);
+const scene = new Scene3D(el('scene3d'));
+const timeline = new Timeline(el('timeline'), (ms) => setDate(ms, { fromScrub: true }));
+
+function buildSiteList() {
+  const wrap = el('siteList');
+  wrap.innerHTML = '';
+  let lastGroup = null;
+  for (const s of SITES) {
+    if (s.group !== lastGroup) {
+      const g = document.createElement('div');
+      g.className = 'group-label';
+      g.textContent = s.group;
+      wrap.appendChild(g);
+      lastGroup = s.group;
+    }
+    const btn = document.createElement('button');
+    btn.className = 'site-btn' + (s.id === state.site.id ? ' active' : '');
+    btn.dataset.id = s.id;
+    btn.innerHTML = `${s.name}<span class="coords">${s.lat.toFixed(2)}°, ${s.lon.toFixed(2)}°E${s.approx ? ' · region ≈' : ''}</span>`;
+    btn.onclick = () => setSite(s);
+    wrap.appendChild(btn);
+  }
+}
+
+function renderMetrics() {
+  const s = state.site;
+  const site = derived.site;
+  const st = moonFixedState(new Date(state.dateMs));
+  const sun = azEl(site, st.sunKm);
+  const earth = azEl(site, st.earthKm);
+  const sunUp = altitudeAboveHorizon(site, 'sun', state.dateMs) > 0;
+  const earthUp = earth.elDeg > 0;
+
+  const card = (title, chipTxt, chipUp, rows) => `
+    <div class="mcard">
+      <div class="ttl"><b>${title}</b><span class="chip ${chipUp ? 'up' : 'down'}">${chipTxt}</span></div>
+      <div class="kv">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>
+    </div>`;
+
+  const nextSunEvt = sunUp
+    ? ['Sunset in', fmtDur(derived.nextSun.nextSetMs ? derived.nextSun.nextSetMs - state.dateMs : null)]
+    : ['Sunrise in', fmtDur(derived.nextSun.nextRiseMs ? derived.nextSun.nextRiseMs - state.dateMs : null)];
+  const nextEarthEvt = earthUp
+    ? ['Earthset in', fmtDur(derived.nextEarth.nextSetMs ? derived.nextEarth.nextSetMs - state.dateMs : null)]
+    : ['Earthrise in', fmtDur(derived.nextEarth.nextRiseMs ? derived.nextEarth.nextRiseMs - state.dateMs : null)];
+
+  el('metrics').innerHTML =
+    `<div class="mcard"><div class="ttl"><b>${s.name}</b>${s.approx ? '<span class="chip down">region ≈</span>' : ''}</div>
+      <div class="kv">
+        <span>Coordinates</span><b>${s.lat.toFixed(3)}°, ${s.lon.toFixed(3)}°E</b>
+        <span>Time (UTC)</span><b>${fmtUTC(state.dateMs)}</b>
+      </div>
+      ${s.note ? `<div class="approx-note">${s.note}</div>` : ''}
+    </div>` +
+    card('Sun — power', sunUp ? 'DAYLIGHT' : 'NIGHT', sunUp, [
+      ['Elevation', fmtDeg(sun.elDeg, 2)],
+      ['Azimuth', fmtDeg(sun.azDeg, 1)],
+      nextSunEvt,
+      [`Lit, ${WINDOW_DAYS}d window`, `${(derived.sunMetrics.fraction * 100).toFixed(1)}%`],
+      ['Longest darkness', fmtDur(derived.sunMetrics.longestGapMs)],
+    ]) +
+    card('Earth — DTE comms', earthUp ? 'LINK POSSIBLE' : 'NO DIRECT LINK', earthUp, [
+      ['Elevation', fmtDeg(earth.elDeg, 2)],
+      ['Azimuth', fmtDeg(earth.azDeg, 1)],
+      nextEarthEvt,
+      [`Visible, ${WINDOW_DAYS}d window`, `${(derived.earthMetrics.fraction * 100).toFixed(1)}%`],
+      ['Longest comms gap', fmtDur(derived.earthMetrics.longestGapMs)],
+    ]);
+}
+
+function renderSky() {
+  const site = derived.site;
+  // ±7-day tracks from the cache (every 3rd sample ≈ 1 h)
+  const sunTrack = [], earthTrack = [];
+  const t0 = state.dateMs - 7 * 86400e3, t1 = state.dateMs + 7 * 86400e3;
+  for (let i = 0; i < cache.times.length; i += 3) {
+    const t = cache.times[i];
+    if (t < t0 || t > t1) continue;
+    sunTrack.push(azEl(site, cache.sun[i]));
+    earthTrack.push(azEl(site, cache.earth[i]));
+  }
+  const st = moonFixedState(new Date(state.dateMs));
+  drawSkyPlot(el('skyplot'), {
+    sunTrack, earthTrack,
+    sunNow: azEl(site, st.sunKm),
+    earthNow: azEl(site, st.earthKm),
+  });
+}
+
+function renderScene() {
+  const st = moonFixedState(new Date(state.dateMs));
+  const site = derived.site;
+  const norm = (v) => { const m = Math.hypot(...v); return [v[0] / m, v[1] / m, v[2] / m]; };
+  scene.setState({
+    sunDir: norm(st.sunKm),
+    earthDir: norm(st.earthKm),
+    site: { lat: state.site.lat, lon: state.site.lon },
+    earthVisible: azEl(site, st.earthKm).elDeg > 0,
+  });
+}
+
+function renderAll({ heavy = false } = {}) {
+  if (heavy || !derived || derived.siteKey !== `${state.site.lat},${state.site.lon}`) recomputeSite();
+  timeline.setSeries(derived.series);
+  timeline.setCursor(state.dateMs);
+  el('tlSite').textContent = state.site.name;
+  el('dateInput').value = msToLocalInput(state.dateMs);
+  renderMetrics();
+  renderSky();
+  renderScene();
+}
+
+// ---------- actions ----------
+function setSite(s) {
+  state.site = s;
+  document.querySelectorAll('.site-btn').forEach((b) => b.classList.toggle('active', b.dataset.id === s.id));
+  scene.focusSite(s.lat, s.lon);
+  renderAll({ heavy: true });
+}
+
+let lastHeavy = 0;
+function setDate(ms, { fromScrub = false } = {}) {
+  state.dateMs = ms;
+  const recentered = ensureCache();
+  if (recentered) {
+    recomputeSite();
+    timeline.setSeries(derived.series);
+  } else if (!fromScrub || Date.now() - lastHeavy > 1500) {
+    // refresh countdowns occasionally while scrubbing
+    derived.nextSun = nextEvents(derived.site, 'sun', ms, { horizonDays: 60 });
+    derived.nextEarth = nextEvents(derived.site, 'earth', ms, { horizonDays: 60 });
+    lastHeavy = Date.now();
+  }
+  timeline.setCursor(ms);
+  el('dateInput').value = msToLocalInput(ms);
+  renderMetrics();
+  renderSky();
+  renderScene();
+}
+
+// ---------- controls ----------
+el('dateInput').addEventListener('change', (e) => {
+  const ms = localInputToMs(e.target.value);
+  if (Number.isFinite(ms)) setDate(ms);
+});
+el('nowBtn').onclick = () => setDate(Date.now());
+el('playBtn').onclick = () => {
+  state.playing = !state.playing;
+  el('playBtn').textContent = state.playing ? '⏸' : '▶';
+};
+el('speedSel').onchange = (e) => { state.speed = Number(e.target.value); };
+el('customGo').onclick = () => {
+  const lat = Number(el('customLat').value);
+  let lon = Number(el('customLon').value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90) return;
+  if (lon > 180) lon -= 360;
+  setSite({
+    id: 'custom', name: `Custom (${lat.toFixed(2)}, ${lon.toFixed(2)})`, lat, lon,
+    group: 'Custom', approx: false,
+    note: 'Custom site — smooth-sphere horizon (no terrain mask).',
+  });
+};
+
+// play loop
+let lastT = performance.now();
+function tick(t) {
+  const dt = (t - lastT) / 1000;
+  lastT = t;
+  if (state.playing) setDate(state.dateMs + state.speed * 1000 * dt, { fromScrub: true });
+  requestAnimationFrame(tick);
+}
+
+// ---------- boot ----------
+buildSiteList();
+scene.focusSite(state.site.lat, state.site.lon);
+renderAll({ heavy: true });
+requestAnimationFrame(tick);
+window.addEventListener('resize', () => { timeline.draw(); renderSky(); });
