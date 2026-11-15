@@ -42,7 +42,10 @@
     <main id="scene-wrap">
       <canvas id="scene3d"></canvas>
       <button id="viewToggle" class="view-toggle" hidden>🌐 Globe view</button>
-      <div class="scene-note">The day/night line (<b>terminator</b>) is computed from the true Sun position for the selected time — what you see lit really is lit. Sun &amp; Earth are shown in their true <i>directions</i>; distances are compressed to fit. Green line = direct radio link to Earth possible; red = Earth below the site's horizon. Drag to orbit, scroll to zoom. Press <b>?</b> for the full guide.</div>
+      <button id="exagToggle" class="view-toggle exag-toggle" hidden title="Vertical relief exaggeration — 1× shows true-scale geometry and true-scale shadows">relief ×3</button>
+      <button id="noteBtn" class="note-btn" title="What am I looking at?">?</button>
+      <div class="scene-note" id="sceneNote" hidden>The day/night line (terminator) is computed from the true Sun position for the selected time — what you see lit really is lit. Sun &amp; Earth are shown in their true <i>directions</i>; distances are compressed to fit. Green line = direct radio link to Earth possible; red = Earth below the site's horizon. In Terrain view, vertical relief is ×3 by default — switch to ×1 for true-scale geometry and shadows. Drag to orbit, scroll or use the slider to zoom. Press <b>?</b> (top right) for the full guide.</div>
+      <div class="zoom-ctl" title="Zoom"><span>−</span><input type="range" id="zoomSlider" min="0" max="100" value="50" /><span>+</span></div>
     </main>
 
     <section id="rightpanel">

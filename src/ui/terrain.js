@@ -3,7 +3,9 @@
  * scripts/horizon_masks.py) and builds a displaced terrain mesh in the site's
  * local ENU frame (x = east, y = north, z = up), including the curvature drop
  * d^2/(2R) so the mesh edge falls below the site's horizontal exactly like
- * the horizon masks assume. Vertical scale is 1:1 — no exaggeration.
+ * the horizon masks assume. Vertical exaggeration is a display option
+ * (default 3x for readability at these gentle regional slopes; 1x gives
+ * true-scale geometry and therefore true-scale shadows).
  */
 import * as THREE from 'three';
 
@@ -48,10 +50,11 @@ export async function loadTerrain(siteId) {
  * horizon_masks.py conventions): e = dx cosL + dy sinL, n = -dx sinL + dy cosL.
  * We bake the rotation into the vertex positions directly.
  */
-export function buildTerrainMesh({ meta, grid }) {
+export function buildTerrainMesh({ meta, grid }, exaggeration = 1) {
   const N = meta.sizePx;                 // 768
   const half = meta.halfSizeM;           // 48000 m
   const S = PATCH_SCENE_SIZE / (2 * half); // meters -> scene units
+  const SZ = S * exaggeration;             // vertical scale
   const lam = (meta.lon * Math.PI) / 180;
   const cl = Math.cos(lam), sl = Math.sin(lam);
 
@@ -74,7 +77,7 @@ export function buildTerrainMesh({ meta, grid }) {
       const d2 = dx * dx + dy * dy;
       const e = dx * cl + dy * sl;
       const n = -dx * sl + dy * cl;
-      const z = (h - h0 - d2 / (2 * R_MOON_M)) * S;
+      const z = (h - h0 - d2 / (2 * R_MOON_M)) * SZ;
       const k = (j * M + i) * 3;
       pos[k] = e * S; pos[k + 1] = n * S; pos[k + 2] = z;
       if (z < minZ) minZ = z;
@@ -92,8 +95,24 @@ export function buildTerrainMesh({ meta, grid }) {
   geo.setIndex(idx);
   geo.computeVertexNormals();
 
+  // Bake height + slope shading into vertex colors so the relief stays
+  // readable even in lunar night / grazing light (the fill lights are dim).
+  const nrm = geo.getAttribute('normal');
+  const col = new Float32Array(M * M * 3);
+  const zSpan = Math.max(1e-6, maxZ - minZ);
+  for (let v = 0; v < M * M; v++) {
+    const z = pos[v * 3 + 2];
+    const t = (z - minZ) / zSpan;                  // 0 low .. 1 high
+    const slope = Math.max(0, nrm.getZ(v));        // 1 flat .. 0 cliff
+    const shade = (0.45 + 0.55 * t) * (0.55 + 0.45 * slope);
+    col[v * 3] = 0.72 * shade;
+    col[v * 3 + 1] = 0.70 * shade;
+    col[v * 3 + 2] = 0.66 * shade;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x9b9b9b, roughness: 0.97, metalness: 0.0,
+    color: 0xffffff, vertexColors: true, roughness: 0.97, metalness: 0.0,
     flatShading: false,
   });
   const mesh = new THREE.Mesh(geo, mat);

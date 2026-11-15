@@ -112,6 +112,8 @@ export class Scene3D {
 
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
+    this.onCameraChange = null;
+    this.controls.addEventListener('change', () => { if (this.onCameraChange) this.onCameraChange(); });
     this.controls.minDistance = 0.15;
     this.controls.maxDistance = 20;
 
@@ -139,6 +141,9 @@ export class Scene3D {
     this.scene.add(this.sunLight.target);
     this.ambient = new THREE.AmbientLight(0x404a5c, 0.25);
     this.scene.add(this.ambient);
+    // fill light so terrain relief stays readable in lunar night / grazing sun
+    this.hemi = new THREE.HemisphereLight(0x93a7cc, 0x16120d, 0.0);
+    this.scene.add(this.hemi);
 
     this.sunSprite = makeGlowSprite('#ffd166', 1.6);
     this.scene.add(this.sunSprite);
@@ -230,19 +235,35 @@ export class Scene3D {
   }
 
   /** Install (or clear) the terrain mesh for the current site. */
-  setTerrainData(data) {
+  setTerrainData(data, exaggeration = 3) {
     if (this.terrainMesh) {
       this.terrain.remove(this.terrainMesh);
       this.terrainMesh.geometry.dispose();
       this.terrainMesh.material.dispose();
       this.terrainMesh = null;
     }
+    this._terrainData = data;
     if (data) {
-      const { mesh } = buildTerrainMesh(data);
+      const { mesh } = buildTerrainMesh(data, exaggeration);
       this.terrainMesh = mesh;
       this.terrain.add(mesh);
       this.tMarker.position.set(0, 0, 0.06);
     }
+  }
+
+  /** Rebuild the current terrain with a new vertical exaggeration. */
+  setExaggeration(exaggeration) {
+    if (this._terrainData) this.setTerrainData(this._terrainData, exaggeration);
+  }
+
+  camDistance() {
+    return this.camera.position.distanceTo(this.controls.target);
+  }
+
+  setCamDistance(d) {
+    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+    this.camera.position.copy(this.controls.target.clone().addScaledVector(dir, d));
+    this.controls.update();
   }
 
   /**
@@ -264,10 +285,14 @@ export class Scene3D {
       this.sunLight.position.copy(sd.clone().multiplyScalar(14));
       this.sunLight.target.position.set(0, 0, 0);
       lineFrom = new THREE.Vector3(0, 0, 0.03);
-      // night: kill the direct sun so shadows read correctly
-      this.sunLight.intensity = s.sunAzEl.elDeg > -0.6 ? 3.2 : 0.0;
-      this.ambient.intensity = 0.18;
+      // night: kill the direct sun so shadows read correctly; hemisphere fill
+      // keeps the relief visible either way
+      const night = s.sunAzEl.elDeg <= -0.6;
+      this.sunLight.intensity = night ? 0.0 : 3.2;
+      this.hemi.intensity = night ? 0.85 : 0.5;
+      this.ambient.intensity = night ? 0.3 : 0.16;
     } else {
+      this.hemi.intensity = 0.0;
       const sunDir = new THREE.Vector3(...s.sunDir);
       const earthDir = new THREE.Vector3(...s.earthDir);
       sunPos = sunDir.clone().multiplyScalar(SUN_DIST);

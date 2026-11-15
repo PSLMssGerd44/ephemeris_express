@@ -175,3 +175,49 @@ body {
   border-radius: 8px; padding: .35rem .7rem; font: inherit; font-size: .78rem; cursor: pointer;
 }
 .view-toggle:hover { border-color: var(--accent); }
+
+/* ---------- v0.5.1 UX fixes ---------- */
+#cmpBtn, #msnBtn, #helpBtn {
+  font-size: .92rem; padding: .42rem .85rem; font-weight: 600;
+}
+.exag-toggle { top: 52px; }
+.note-btn {
+  position: absolute; left: 12px; bottom: 12px; width: 28px; height: 28px;
+  border-radius: 50%; background: rgba(23,27,38,.85); border: 1px solid var(--line);
+  color: var(--accent); font-weight: 700; cursor: pointer; font-size: .9rem;
+}
+.note-btn:hover { border-color: var(--accent); }
+.scene-note { left: 48px; bottom: 12px; }
+.zoom-ctl {
+  position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px;
+  align-items: center; background: rgba(23,27,38,.75); border: 1px solid var(--line);
+  border-radius: 999px; padding: .2rem .6rem; color: var(--dim);
+}
+.zoom-ctl input { width: 130px; accent-color: var(--sun); }
+.hint-toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+  background: #1c2436; border: 1px solid #31405e; color: var(--text);
+  border-radius: 10px; padding: .55rem .9rem; font-size: .82rem; z-index: 60;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 90vw;
+  animation: toast-io 7s ease forwards;
+}
+@keyframes toast-io {
+  0% { opacity: 0; transform: translate(-50%, 8px); }
+  6%, 88% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+/* compact / mobile layout */
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  #app {
+    height: auto; min-height: 100vh;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 52vh auto auto auto;
+    grid-template-areas: "top" "scene" "tl" "right" "side";
+  }
+  #topbar { flex-wrap: wrap; height: auto; padding: 8px 10px; gap: 6px; }
+  #timeline-wrap { min-height: 180px; }
+  #sidebar, #rightpanel { border: none; border-top: 1px solid var(--line); }
+  .scene-note { max-width: 75vw; font-size: .72rem; }
+}

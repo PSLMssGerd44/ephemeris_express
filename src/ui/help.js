@@ -25,6 +25,7 @@ const HTML = `
       <li><b>Pick a site</b> on the left — Artemis III candidate regions, robotic missions, Apollo — or enter custom coordinates.</li>
       <li><b>Pick a time</b> — type a date (UTC), press ▶ to animate, or <b>drag across the timeline</b> at the bottom.</li>
       <li><b>Read the verdict</b> on the right: current Sun/Earth positions, countdowns to sunset/Earthset, and 30-day statistics. The <b>“What this means”</b> card translates the numbers into plain language.</li>
+      <li><b>Hover for definitions</b> — labels with a dotted underline (Elevation, Azimuth, Longest darkness…) show a one-line explanation of what the number means and why missions care.</li>
     </ol>
 
     <h3>Reading the panels</h3>
@@ -38,7 +39,7 @@ const HTML = `
 
     <h3>Power tools</h3>
     <ul>
-      <li><b>⛰ Terrain view</b> (south-polar sites) — real LOLA topography, 96 km across, vertical scale 1:1, lit by the Sun at its true position. <b>The shadows are computed, not painted</b>: scrub time and watch kilometers-long polar shadows sweep the terrain. Toggle back to the globe with the button in the corner.</li>
+      <li><b>⛰ Terrain view</b> (south-polar sites) — real LOLA topography, 96 km across, lit by the Sun at its true position. <b>The shadows are computed, not painted</b>: scrub time and watch kilometers-long polar shadows sweep the terrain. Vertical relief is shown ×3 by default so the gentle regional slopes are visible — toggle the “relief” button to ×1 for true-scale geometry and true-scale shadows. Use the slider (bottom right) or scroll to zoom.</li>
       <li><b>Compare</b> — every catalog site scored over the current 30-day window (sunlight %, longest darkness, Earth visibility, longest comms gap). Click a column to sort, a row to open that site.</li>
       <li><b>🚀 Mission</b> — back-computes the Earth-departure picture for your selected arrival time: ΔV vs time-of-flight (from the Moon's actual distance at arrival), departure epoch, C3, LOI, and plane-alignment launch windows for 7 real launch sites based on the Moon's declination. First-order patched-conic — assumptions listed in the panel.</li>
     </ul>
@@ -53,7 +54,7 @@ const HTML = `
       <dt>Region ≈</dt><dd>Artemis III entries are ~15×15 km candidate <i>regions</i>; the coordinate shown is an approximate center, not a chosen landing point.</dd>
     </dl>
 
-    <h3>Can I trust the numbers?</h3>
+    <h3>Can the numbers be trusted?</h3>
     <p>The positions are computed in your browser from the IAU lunar-orientation model (librations included)
     plus a planetary ephemeris, and are <b>validated against NASA/JPL Horizons to ≤0.004°</b> —
     about 1/130th of the Sun's apparent size. South-polar catalog sites use <b>terrain horizon
@@ -61,7 +62,17 @@ const HTML = `
     Local Sky plot is the real mountain skyline blocking the sky. Custom sites and lower-latitude sites use a
     smooth-sphere horizon (flagged on the site card).</p>
 
-    <p class="help-foot">NASA Space Apps Challenge 2026 — <i>Lunar Landing Site Navigator</i>. Open source.</p>
+    <h3>References &amp; data</h3>
+    <ul class="help-refs">
+      <li>NASA/JPL <b>Horizons System</b> (DE441 ephemeris) — validation reference for all Sun/Earth angles.</li>
+      <li>Archinal, B. A., et al. — <i>Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2009</i>, Celest. Mech. Dyn. Astron. 109, 101–135 (2011) — lunar orientation &amp; libration model.</li>
+      <li>NASA LRO <b>LOLA</b> Gridded Data Record <code>LDEM_80S_80M</code> (Smith, D. E., et al., LOLA Science Team; PDS Geosciences Node) — south-polar elevation model, ME/DE421 frame.</li>
+      <li>NASA — <i>Artemis III candidate landing regions</i> announcement (2022).</li>
+      <li>Bate, Mueller &amp; White — <i>Fundamentals of Astrodynamics</i> — patched-conic transfer model used by the Mission planner.</li>
+      <li><code>astronomy-engine</code> (Don Cross, MIT license) — planetary positions; <code>Three.js</code> + <code>Vite</code> — rendering and build.</li>
+    </ul>
+
+    <p class="help-foot">NASA Space Apps Challenge 2026 — <i>Lunar Landing Site Navigator</i>. Open source.<br/>Ephemeris Express Team — Paulina Sandoval.</p>
   </div>
 </div>`;
 
@@ -70,7 +81,20 @@ export function initHelp(buttonEl) {
   wrap.innerHTML = HTML;
   document.body.appendChild(wrap.firstElementChild);
   const backdrop = document.getElementById('helpBackdrop');
-  const close = () => backdrop.classList.remove('open');
+  let toastShown = false;
+  const close = () => {
+    backdrop.classList.remove('open');
+    // one transient reminder after the guide closes: the quickest way to
+    // learn the UI is the hover tooltips on the dotted-underlined labels
+    if (!toastShown) {
+      toastShown = true;
+      const t = document.createElement('div');
+      t.className = 'hint-toast';
+      t.innerHTML = 'Tip: hover the dotted-underlined labels — <b>Elevation</b>, <b>Azimuth</b>, <b>Longest darkness</b>… — for one-line explanations. Reopen the guide anytime with <b>?</b>';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 7200);
+    }
+  };
   const open = () => backdrop.classList.add('open');
   document.getElementById('helpClose').onclick = close;
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });

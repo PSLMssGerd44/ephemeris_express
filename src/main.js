@@ -32,6 +32,7 @@ const state = {
   playing: false,
   speed: 21600, // sim seconds per real second
   view: 'auto', // 'auto' | 'globe' | 'terrain'
+  exag: 3,      // terrain vertical exaggeration (3x readable, 1x true scale)
 };
 
 // ---------- site-independent ephemeris cache ----------
@@ -193,9 +194,12 @@ function effectiveMode() {
 
 function updateViewToggle() {
   const btn = el('viewToggle');
-  if (!scene.terrainMesh) { btn.hidden = true; return; }
+  const exagBtn = el('exagToggle');
+  if (!scene.terrainMesh) { btn.hidden = true; exagBtn.hidden = true; return; }
   btn.hidden = false;
   btn.textContent = effectiveMode() === 'terrain' ? '🌐 Globe view' : '⛰ Terrain view';
+  exagBtn.hidden = effectiveMode() !== 'terrain';
+  exagBtn.textContent = `relief ×${state.exag}`;
 }
 
 function renderScene() {
@@ -236,7 +240,7 @@ function setSite(s) {
   if (maskFor(s.id)) {
     loadTerrain(s.id).then((data) => {
       if (state.site.id !== s.id || !data) return;
-      scene.setTerrainData(data);
+      scene.setTerrainData(data, state.exag);
       updateViewToggle();
       if (effectiveMode() === 'terrain') scene.focusTerrain();
       renderScene();
@@ -304,6 +308,31 @@ el('viewToggle').onclick = () => {
   else scene.focusSite(state.site.lat, state.site.lon);
   updateViewToggle();
   renderScene();
+};
+
+el('exagToggle').onclick = () => {
+  state.exag = state.exag === 3 ? 1 : 3;
+  scene.setExaggeration(state.exag);
+  updateViewToggle();
+  renderScene();
+};
+
+el('noteBtn').onclick = () => {
+  const note = el('sceneNote');
+  note.hidden = !note.hidden;
+};
+
+// zoom slider <-> camera distance (log scale), synced both ways
+const ZOOM_MIN = 0.45, ZOOM_MAX = 12;
+const zoomEl = el('zoomSlider');
+zoomEl.addEventListener('input', () => {
+  const f = Number(zoomEl.value) / 100;
+  // slider right (+) = closer, left (−) = farther
+  scene.setCamDistance(ZOOM_MAX * Math.pow(ZOOM_MIN / ZOOM_MAX, f));
+});
+scene.onCameraChange = () => {
+  const d = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scene.camDistance()));
+  zoomEl.value = Math.round((Math.log(d / ZOOM_MAX) / Math.log(ZOOM_MIN / ZOOM_MAX)) * 100);
 };
 
 // ---------- boot ----------
