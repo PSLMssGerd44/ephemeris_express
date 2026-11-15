@@ -1,1 +1,1 @@
-{"sizePx": 768, "halfSizeM": 48000.0, "minM": -4385.6875, "maxM": 4260.06201171875, "lat": -82.886, "lon": 77.9581, "source": "LOLA LDEM_80S_80M (NASA/LRO), ME frame (DE421)"}
+{"sizePx": 768, "halfSizeM": 48000.0, "minM": -4385.6875, "maxM": 4260.06201171875, "lat": -82.886, "lon": 77.9581, "source": "LOLA LDEM_80S_80M (NASA/LRO), ME frame (DE421)", "encoding": {"type": "terrain-rgb", "offsetM": -15000.0, "scaleM": 0.002}}

@@ -1,17 +1,22 @@
 /**
- * 3D scene: the Moon lit by the true Sun direction (so the terminator is
- * physically correct for the selected time), the Earth and Sun shown in their
- * true DIRECTIONS (distances compressed for visibility), site marker, and a
- * line from the site to Earth colored by DTE visibility.
+ * 3D scene with two modes:
  *
- * Frame: lunar ME body-fixed coordinates used directly as scene coordinates;
- * +Z is the lunar north pole.
+ * GLOBE — the whole Moon in the ME body-fixed frame, lit by the true Sun
+ * direction (the terminator is real for the selected time), Earth/Sun shown
+ * in true directions (distances compressed), site marker, DTE line.
+ *
+ * TERRAIN — real LOLA topography around a south-polar site (96 km patch,
+ * vertical scale 1:1, curvature included) in the site's local ENU frame,
+ * lit by the Sun at its true azimuth/elevation with SHADOW MAPPING: the
+ * long polar shadows you see are computed from real terrain and the real
+ * Sun position.
  */
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PATCH_SCENE_SIZE, buildTerrainMesh } from './terrain.js';
 
-const R = 1; // Moon radius in scene units
+const R = 1;
 const EARTH_DIST = 5.5;
 const SUN_DIST = 9;
 
@@ -24,7 +29,15 @@ function latLonToVec(latDeg, lonDeg, r = R) {
   );
 }
 
-/** Procedural cratered texture (no external assets needed). */
+function azElToEnu(azDeg, elDeg) {
+  const az = (azDeg * Math.PI) / 180, el = (elDeg * Math.PI) / 180;
+  return new THREE.Vector3(
+    Math.sin(az) * Math.cos(el),   // east
+    Math.cos(az) * Math.cos(el),   // north
+    Math.sin(el)                   // up
+  );
+}
+
 function makeMoonTextures() {
   const w = 1024, h = 512;
   const cv = document.createElement('canvas');
@@ -32,7 +45,6 @@ function makeMoonTextures() {
   const ctx = cv.getContext('2d');
   ctx.fillStyle = '#8f8f8f';
   ctx.fillRect(0, 0, w, h);
-  // large maria-like patches
   for (let i = 0; i < 25; i++) {
     const x = Math.random() * w, y = Math.random() * h, r = 30 + Math.random() * 90;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -42,7 +54,6 @@ function makeMoonTextures() {
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill();
   }
-  // craters
   for (let i = 0; i < 700; i++) {
     const x = Math.random() * w, y = Math.random() * h, r = 1 + Math.random() * 9;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -68,9 +79,21 @@ function makeGlowSprite(color, size) {
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
-  const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false });
-  const spr = new THREE.Sprite(mat);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
   spr.scale.setScalar(size);
+  return spr;
+}
+
+function makeTextSprite(text, color = '#cfd6e4', px = 48) {
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 64;
+  const ctx = cv.getContext('2d');
+  ctx.font = `bold ${px}px system-ui`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.fillText(text, 64, 32);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  spr.scale.set(0.3, 0.15, 1);
   return spr;
 }
 
@@ -78,16 +101,18 @@ export class Scene3D {
   constructor(canvas) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x05060a);
 
-    this.camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+    this.camera = new THREE.PerspectiveCamera(45, 1, 0.005, 100);
     this.camera.up.set(0, 0, 1);
     this.camera.position.set(2.2, -1.6, -1.6);
 
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = true;
-    this.controls.minDistance = 1.25;
+    this.controls.minDistance = 0.15;
     this.controls.maxDistance = 20;
 
     // stars
@@ -98,22 +123,23 @@ export class Scene3D {
       starPos.set([v.x, v.y, v.z], i * 3);
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-    this.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x9aa3b8, size: 0.07, sizeAttenuation: true })));
+    this.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x9aa3b8, size: 0.07 })));
 
-    // Moon
-    const { map, bumpMap } = makeMoonTextures();
-    this.moon = new THREE.Mesh(
-      new THREE.SphereGeometry(R, 96, 96),
-      new THREE.MeshStandardMaterial({ map, bumpMap, bumpScale: 0.02, roughness: 0.95, metalness: 0 })
-    );
-    this.scene.add(this.moon);
-
-    // lights
+    // shared lights
     this.sunLight = new THREE.DirectionalLight(0xfff5e0, 3.2);
+    this.sunLight.castShadow = true;
+    const sc = this.sunLight.shadow.camera;
+    sc.left = sc.bottom = -PATCH_SCENE_SIZE * 0.75;
+    sc.right = sc.top = PATCH_SCENE_SIZE * 0.75;
+    sc.near = 0.1; sc.far = 40;
+    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.bias = -0.00035;
+    this.sunLight.shadow.normalBias = 0.002;
     this.scene.add(this.sunLight);
-    this.scene.add(new THREE.AmbientLight(0x404a5c, 0.25)); // faint earthshine/starlight so night side isn't pure black
+    this.scene.add(this.sunLight.target);
+    this.ambient = new THREE.AmbientLight(0x404a5c, 0.25);
+    this.scene.add(this.ambient);
 
-    // Sun & Earth markers
     this.sunSprite = makeGlowSprite('#ffd166', 1.6);
     this.scene.add(this.sunSprite);
     this.earth = new THREE.Mesh(
@@ -124,39 +150,56 @@ export class Scene3D {
     this.earthGlow = makeGlowSprite('#4cc9f0', 0.5);
     this.scene.add(this.earthGlow);
 
-    // site marker
-    this.siteMarker = new THREE.Mesh(
-      new THREE.SphereGeometry(0.018, 16, 16),
-      new THREE.MeshBasicMaterial({ color: 0xff5964 })
+    // ---- globe group ----
+    this.globe = new THREE.Group();
+    const { map, bumpMap } = makeMoonTextures();
+    this.moon = new THREE.Mesh(
+      new THREE.SphereGeometry(R, 96, 96),
+      new THREE.MeshStandardMaterial({ map, bumpMap, bumpScale: 0.02, roughness: 0.95 })
     );
-    this.scene.add(this.siteMarker);
+    this.globe.add(this.moon);
+    this.siteMarker = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff5964 }));
+    this.globe.add(this.siteMarker);
     this.siteRing = new THREE.Mesh(
       new THREE.RingGeometry(0.05, 0.06, 48),
       new THREE.MeshBasicMaterial({ color: 0xff5964, side: THREE.DoubleSide, transparent: true, opacity: 0.8 })
     );
-    this.scene.add(this.siteRing);
-
-    // DTE line site -> Earth
-    this.dteGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-    this.dteLine = new THREE.Line(this.dteGeo, new THREE.LineBasicMaterial({ color: 0x7ae582, transparent: true, opacity: 0.9 }));
-    this.scene.add(this.dteLine);
-
-    // graticule
-    const grat = new THREE.Group();
+    this.globe.add(this.siteRing);
     const gmat = new THREE.LineBasicMaterial({ color: 0x3a4255, transparent: true, opacity: 0.35 });
     for (let lat = -60; lat <= 60; lat += 30) {
       const pts = [];
       for (let lon = 0; lon <= 360; lon += 4) pts.push(latLonToVec(lat, lon, R * 1.001));
-      grat.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gmat));
+      this.globe.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gmat));
     }
     for (let lon = 0; lon < 360; lon += 30) {
       const pts = [];
       for (let lat = -90; lat <= 90; lat += 4) pts.push(latLonToVec(lat, lon, R * 1.001));
-      grat.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gmat));
+      this.globe.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), gmat));
     }
-    this.scene.add(grat);
+    this.scene.add(this.globe);
 
-    this._raf = null;
+    // ---- terrain group (mesh added per site) ----
+    this.terrain = new THREE.Group();
+    this.terrainMesh = null;
+    this.tMarker = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.07, 16), new THREE.MeshBasicMaterial({ color: 0xff5964 }));
+    this.tMarker.rotation.x = Math.PI / 2; // point down (+z up)
+    this.terrain.add(this.tMarker);
+    const nArrow = new THREE.Group();
+    const nCone = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.09, 12), new THREE.MeshBasicMaterial({ color: 0x9fb4d8 }));
+    nCone.position.set(0, PATCH_SCENE_SIZE / 2 + 0.1, 0);
+    nArrow.add(nCone);
+    const nLabel = makeTextSprite('N');
+    nLabel.position.set(0, PATCH_SCENE_SIZE / 2 + 0.22, 0.02);
+    nArrow.add(nLabel);
+    this.terrain.add(nArrow);
+    this.scene.add(this.terrain);
+    this.terrain.visible = false;
+
+    // DTE line
+    this.dteGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    this.dteLine = new THREE.Line(this.dteGeo, new THREE.LineBasicMaterial({ color: 0x7ae582, transparent: true, opacity: 0.9 }));
+    this.scene.add(this.dteLine);
+
     this._animate = this._animate.bind(this);
     this._animate();
     window.addEventListener('resize', () => this._resize());
@@ -172,39 +215,83 @@ export class Scene3D {
     this.camera.updateProjectionMatrix();
   }
 
-  /** Move camera so the site faces the viewer. */
   focusSite(latDeg, lonDeg) {
     const dir = latLonToVec(latDeg, lonDeg, 1).normalize();
-    const dist = this.camera.position.length() || 2.8;
-    this.camera.position.copy(dir.multiplyScalar(Math.max(dist, 2.2)));
+    const dist = Math.max(this.camera.position.length() || 2.8, 2.2);
+    this.camera.position.copy(dir.multiplyScalar(dist));
+    this.controls.target.set(0, 0, 0);
     this.controls.update();
   }
 
+  focusTerrain() {
+    this.camera.position.set(PATCH_SCENE_SIZE * 0.55, -PATCH_SCENE_SIZE * 0.55, PATCH_SCENE_SIZE * 0.38);
+    this.controls.target.set(0, 0, 0);
+    this.controls.update();
+  }
+
+  /** Install (or clear) the terrain mesh for the current site. */
+  setTerrainData(data) {
+    if (this.terrainMesh) {
+      this.terrain.remove(this.terrainMesh);
+      this.terrainMesh.geometry.dispose();
+      this.terrainMesh.material.dispose();
+      this.terrainMesh = null;
+    }
+    if (data) {
+      const { mesh } = buildTerrainMesh(data);
+      this.terrainMesh = mesh;
+      this.terrain.add(mesh);
+      this.tMarker.position.set(0, 0, 0.06);
+    }
+  }
+
   /**
-   * @param {Object} s
-   *  sunDir, earthDir: unit vectors (ME frame); site: {lat, lon};
-   *  earthVisible: boolean
+   * mode: 'globe' | 'terrain'
+   * Globe: sunDir/earthDir are ME-frame unit vectors, site {lat, lon}.
+   * Terrain: sunAzEl/earthAzEl are {azDeg, elDeg} at the site.
    */
   setState(s) {
-    const sunDir = new THREE.Vector3(...s.sunDir);
-    const earthDir = new THREE.Vector3(...s.earthDir);
-    this.sunLight.position.copy(sunDir.clone().multiplyScalar(20));
-    this.sunSprite.position.copy(sunDir.clone().multiplyScalar(SUN_DIST));
-    this.earth.position.copy(earthDir.clone().multiplyScalar(EARTH_DIST));
-    this.earthGlow.position.copy(this.earth.position);
+    const terrainMode = s.mode === 'terrain' && this.terrainMesh;
+    this.globe.visible = !terrainMode;
+    this.terrain.visible = !!terrainMode;
 
-    const sitePos = latLonToVec(s.site.lat, s.site.lon, R * 1.002);
-    this.siteMarker.position.copy(sitePos);
-    this.siteRing.position.copy(sitePos.clone().multiplyScalar(1.001));
-    this.siteRing.lookAt(sitePos.clone().multiplyScalar(2));
-
-    this.dteGeo.setFromPoints([sitePos, this.earth.position]);
+    let sunPos, earthPos, lineFrom;
+    if (terrainMode) {
+      const sd = azElToEnu(s.sunAzEl.azDeg, s.sunAzEl.elDeg);
+      const ed = azElToEnu(s.earthAzEl.azDeg, s.earthAzEl.elDeg);
+      sunPos = sd.clone().multiplyScalar(SUN_DIST);
+      earthPos = ed.clone().multiplyScalar(EARTH_DIST);
+      this.sunLight.position.copy(sd.clone().multiplyScalar(14));
+      this.sunLight.target.position.set(0, 0, 0);
+      lineFrom = new THREE.Vector3(0, 0, 0.03);
+      // night: kill the direct sun so shadows read correctly
+      this.sunLight.intensity = s.sunAzEl.elDeg > -0.6 ? 3.2 : 0.0;
+      this.ambient.intensity = 0.18;
+    } else {
+      const sunDir = new THREE.Vector3(...s.sunDir);
+      const earthDir = new THREE.Vector3(...s.earthDir);
+      sunPos = sunDir.clone().multiplyScalar(SUN_DIST);
+      earthPos = earthDir.clone().multiplyScalar(EARTH_DIST);
+      this.sunLight.position.copy(sunDir.clone().multiplyScalar(20));
+      this.sunLight.target.position.set(0, 0, 0);
+      this.sunLight.intensity = 3.2;
+      this.ambient.intensity = 0.25;
+      const sitePos = latLonToVec(s.site.lat, s.site.lon, R * 1.002);
+      this.siteMarker.position.copy(sitePos);
+      this.siteRing.position.copy(sitePos.clone().multiplyScalar(1.001));
+      this.siteRing.lookAt(sitePos.clone().multiplyScalar(2));
+      lineFrom = sitePos;
+    }
+    this.sunSprite.position.copy(sunPos);
+    this.earth.position.copy(earthPos);
+    this.earthGlow.position.copy(earthPos);
+    this.dteGeo.setFromPoints([lineFrom, earthPos]);
     this.dteLine.material.color.set(s.earthVisible ? 0x7ae582 : 0xef6d6d);
     this.dteLine.material.opacity = s.earthVisible ? 0.9 : 0.35;
   }
 
   _animate() {
-    this._raf = requestAnimationFrame(this._animate);
+    requestAnimationFrame(this._animate);
     this.controls.update();
     this._resize();
     this.renderer.render(this.scene, this.camera);

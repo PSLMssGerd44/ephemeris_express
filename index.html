@@ -22,6 +22,8 @@
           <option value="21600" selected>6 h/s</option>
           <option value="86400">1 d/s</option>
         </select>
+        <button id="cmpBtn" title="Compare all catalog sites over the current window">Compare</button>
+        <button id="msnBtn" title="Transfer &amp; launch-window estimates for the selected arrival time">🚀 Mission</button>
         <button id="helpBtn" class="help-btn" title="Guide, how-to and glossary">?</button>
       </div>
     </header>
@@ -39,6 +41,7 @@
 
     <main id="scene-wrap">
       <canvas id="scene3d"></canvas>
+      <button id="viewToggle" class="view-toggle" hidden>🌐 Globe view</button>
       <div class="scene-note">The day/night line (<b>terminator</b>) is computed from the true Sun position for the selected time — what you see lit really is lit. Sun &amp; Earth are shown in their true <i>directions</i>; distances are compressed to fit. Green line = direct radio link to Earth possible; red = Earth below the site's horizon. Drag to orbit, scroll to zoom. Press <b>?</b> for the full guide.</div>
     </main>
 

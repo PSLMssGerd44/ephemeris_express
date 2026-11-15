@@ -18,6 +18,9 @@ import { drawSkyPlot } from './ui/skyplot.js';
 import { fmtDeg, fmtDur, fmtUTC, msToLocalInput, localInputToMs } from './ui/format.js';
 import { interpret } from './ui/interpret.js';
 import { initHelp } from './ui/help.js';
+import { initCompare } from './ui/compare.js';
+import { initMission } from './ui/mission.js';
+import { loadTerrain } from './ui/terrain.js';
 
 const WINDOW_DAYS = 30;
 const SAMPLE_MIN = 20;
@@ -28,6 +31,7 @@ const state = {
   dateMs: Date.now(),
   playing: false,
   speed: 21600, // sim seconds per real second
+  view: 'auto', // 'auto' | 'globe' | 'terrain'
 };
 
 // ---------- site-independent ephemeris cache ----------
@@ -183,15 +187,31 @@ function renderSky() {
   });
 }
 
+function effectiveMode() {
+  return state.view !== 'globe' && scene.terrainMesh ? 'terrain' : 'globe';
+}
+
+function updateViewToggle() {
+  const btn = el('viewToggle');
+  if (!scene.terrainMesh) { btn.hidden = true; return; }
+  btn.hidden = false;
+  btn.textContent = effectiveMode() === 'terrain' ? '🌐 Globe view' : '⛰ Terrain view';
+}
+
 function renderScene() {
   const st = moonFixedState(new Date(state.dateMs));
   const site = derived.site;
   const norm = (v) => { const m = Math.hypot(...v); return [v[0] / m, v[1] / m, v[2] / m]; };
+  const sun = azEl(site, st.sunKm);
+  const earth = azEl(site, st.earthKm);
   scene.setState({
+    mode: effectiveMode(),
     sunDir: norm(st.sunKm),
     earthDir: norm(st.earthKm),
+    sunAzEl: sun,
+    earthAzEl: earth,
     site: { lat: state.site.lat, lon: state.site.lon },
-    earthVisible: azEl(site, st.earthKm).elDeg > 0,
+    earthVisible: earth.elDeg > derived.horizonFn(earth.azDeg),
   });
 }
 
@@ -209,7 +229,19 @@ function renderAll({ heavy = false } = {}) {
 // ---------- actions ----------
 function setSite(s) {
   state.site = s;
+  state.view = 'auto';
   document.querySelectorAll('.site-btn').forEach((b) => b.classList.toggle('active', b.dataset.id === s.id));
+  scene.setTerrainData(null);
+  updateViewToggle();
+  if (maskFor(s.id)) {
+    loadTerrain(s.id).then((data) => {
+      if (state.site.id !== s.id || !data) return;
+      scene.setTerrainData(data);
+      updateViewToggle();
+      if (effectiveMode() === 'terrain') scene.focusTerrain();
+      renderScene();
+    });
+  }
   scene.focusSite(s.lat, s.lon);
   renderAll({ heavy: true });
 }
@@ -266,10 +298,19 @@ function tick(t) {
   requestAnimationFrame(tick);
 }
 
+el('viewToggle').onclick = () => {
+  state.view = effectiveMode() === 'terrain' ? 'globe' : 'terrain';
+  if (effectiveMode() === 'terrain') scene.focusTerrain();
+  else scene.focusSite(state.site.lat, state.site.lon);
+  updateViewToggle();
+  renderScene();
+};
+
 // ---------- boot ----------
 initHelp(el('helpBtn'));
+initCompare(el('cmpBtn'), () => ({ t0: cache.t0, t1: cache.t1 }), (s) => setSite(s));
+initMission(el('msnBtn'), () => ({ dateMs: state.dateMs, siteName: state.site.name }));
 buildSiteList();
-scene.focusSite(state.site.lat, state.site.lon);
-renderAll({ heavy: true });
+setSite(state.site);
 requestAnimationFrame(tick);
 window.addEventListener('resize', () => { timeline.draw(); renderSky(); });

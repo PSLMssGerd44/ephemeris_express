@@ -152,6 +152,8 @@ def horizon_mask(h, lat, lon, verbose=False):
 
 
 def heightmap_patch(h, lat, lon, site_id, outdir):
+    from PIL import Image
+    OFF, SCALE = -15000.0, 0.002   # terrain-RGB: h = OFF + code*SCALE
     x0, y0 = latlon_to_xy(lat, lon)
     xs = np.linspace(x0 - PATCH_HALF_M, x0 + PATCH_HALF_M, PATCH_PX)
     ys = np.linspace(y0 - PATCH_HALF_M, y0 + PATCH_HALF_M, PATCH_PX)
@@ -160,11 +162,17 @@ def heightmap_patch(h, lat, lon, site_id, outdir):
     if np.isnan(grid).any():
         grid = np.nan_to_num(grid, nan=float(np.nanmean(grid)))
     outdir.mkdir(parents=True, exist_ok=True)
-    grid.tofile(outdir / f"{site_id}.bin")
+    code = np.clip(np.round((grid - OFF) / SCALE), 0, 2**24 - 1).astype(np.uint32)
+    rgb = np.zeros((PATCH_PX, PATCH_PX, 3), dtype=np.uint8)
+    rgb[..., 0] = (code >> 16) & 0xFF
+    rgb[..., 1] = (code >> 8) & 0xFF
+    rgb[..., 2] = code & 0xFF
+    Image.fromarray(rgb, "RGB").save(outdir / f"{site_id}.png", optimize=True)
     (outdir / f"{site_id}.json").write_text(json.dumps({
         "sizePx": PATCH_PX, "halfSizeM": PATCH_HALF_M,
         "minM": float(grid.min()), "maxM": float(grid.max()),
         "lat": lat, "lon": lon,
+        "encoding": {"type": "terrain-rgb", "offsetM": OFF, "scaleM": SCALE},
         "source": "LOLA LDEM_80S_80M (NASA/LRO), ME frame (DE421)",
     }))
 

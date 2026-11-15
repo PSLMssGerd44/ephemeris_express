@@ -36,6 +36,13 @@ const HTML = `
       <li><b>Earth card</b> — “DTE” = direct-to-Earth radio. Visible Earth = link possible without a relay satellite. “Longest comms gap” is the autonomy the mission must survive.</li>
     </ul>
 
+    <h3>Power tools</h3>
+    <ul>
+      <li><b>⛰ Terrain view</b> (south-polar sites) — real LOLA topography, 96 km across, vertical scale 1:1, lit by the Sun at its true position. <b>The shadows are computed, not painted</b>: scrub time and watch kilometers-long polar shadows sweep the terrain. Toggle back to the globe with the button in the corner.</li>
+      <li><b>Compare</b> — every catalog site scored over the current 30-day window (sunlight %, longest darkness, Earth visibility, longest comms gap). Click a column to sort, a row to open that site.</li>
+      <li><b>🚀 Mission</b> — back-computes the Earth-departure picture for your selected arrival time: ΔV vs time-of-flight (from the Moon's actual distance at arrival), departure epoch, C3, LOI, and plane-alignment launch windows for 7 real launch sites based on the Moon's declination. First-order patched-conic — assumptions listed in the panel.</li>
+    </ul>
+
     <h3>Glossary</h3>
     <dl>
       <dt>Terminator</dt><dd>The moving line separating lunar day from lunar night.</dd>
