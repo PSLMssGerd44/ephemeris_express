@@ -10,18 +10,18 @@
 
 export const SITES = [
   // --- Artemis III candidate regions (south pole) ---
-  { id: 'shackleton-peak', name: 'Peak near Shackleton', lat: -89.66, lon: 129.2, group: 'Artemis III regions', approx: true,
-    note: 'Elevated terrain between Shackleton and Slater craters. Validation site for this tool.' },
+  { id: 'shackleton-peak', name: 'Shackleton Rim crest', lat: -89.7787, lon: 203.7574, group: 'Artemis III regions', approx: false,
+    note: 'Highest point of Shackleton’s rim, snapped from LOLA 80 m data (+1.74 km). Adjacent to the Artemis III “Peak near Shackleton” region.' },
   { id: 'connecting-ridge', name: 'Connecting Ridge', lat: -89.45, lon: 222.8, group: 'Artemis III regions', approx: true,
-    note: 'High ridge linking Shackleton and de Gerlache — among the most illuminated terrain on the Moon.' },
-  { id: 'malapert-massif', name: 'Malapert Massif', lat: -85.99, lon: 2.92, group: 'Artemis III regions', approx: true,
-    note: 'Mountain ~5 km above surroundings; strong Earth visibility for DTE comms.' },
-  { id: 'de-gerlache-rim', name: 'de Gerlache Rim 1', lat: -88.66, lon: 273.0, group: 'Artemis III regions', approx: true,
-    note: 'Rim of de Gerlache crater, adjacent to permanently shadowed interior.' },
+    note: 'High ridge linking Shackleton and de Gerlache (+1.96 km here) — among the most illuminated terrain on the Moon.' },
+  { id: 'malapert-massif', name: 'Malapert Massif summit', lat: -85.9873, lon: 2.0888, group: 'Artemis III regions', approx: false,
+    note: 'Summit snapped from LOLA data (+5.17 km). Everything is downhill from here: near-continuous Sun and strong Earth view for DTE comms.' },
+  { id: 'de-gerlache-rim', name: 'de Gerlache Rim crest', lat: -88.6651, lon: 291.5959, group: 'Artemis III regions', approx: false,
+    note: 'Highest point of de Gerlache’s rim (LOLA-snapped, +1.81 km), adjacent to permanently shadowed interior.' },
   { id: 'nobile-rim-1', name: 'Nobile Rim 1', lat: -85.2, lon: 36.5, group: 'Artemis III regions', approx: true,
-    note: 'Northeast rim of Nobile crater.' },
-  { id: 'amundsen-rim', name: 'Amundsen Rim', lat: -84.25, lon: 82.8, group: 'Artemis III regions', approx: true,
-    note: 'Rim of Amundsen crater; large PSR on the crater floor.' },
+    note: 'High ground near Nobile crater (+6.8 km here per LOLA).' },
+  { id: 'amundsen-rim', name: 'Amundsen Rim crest', lat: -82.886, lon: 77.9581, group: 'Artemis III regions', approx: false,
+    note: 'Highest point of Amundsen’s rim (LOLA-snapped, +4.26 km); large PSR on the crater floor below.' },
 
   // --- CLPS & recent robotic missions ---
   { id: 'im2-athena', name: 'IM-2 Athena (Mons Mouton)', lat: -84.79, lon: 29.19, group: 'CLPS & robotic', approx: false,
