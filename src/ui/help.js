@@ -22,7 +22,7 @@ const HTML = `
 
     <h3>How to use it</h3>
     <ol>
-      <li><b>Pick a site</b> on the left — Artemis III candidate regions, robotic missions, Apollo — or enter custom coordinates.</li>
+      <li><b>Pick a site</b> on the left — Artemis IV candidate regions, robotic missions, Apollo — or enter custom coordinates.</li>
       <li><b>Pick a time</b> — type a date (UTC), press ▶ to animate, or <b>drag across the timeline</b> at the bottom.</li>
       <li><b>Read the verdict</b> on the right: current Sun/Earth positions, countdowns to sunset/Earthset, and 30-day statistics. The <b>“What this means”</b> card translates the numbers into plain language.</li>
       <li><b>Hover for definitions</b> — labels with a dotted underline (Elevation, Azimuth, Longest darkness…) show a one-line explanation of what the number means and why missions care.</li>
