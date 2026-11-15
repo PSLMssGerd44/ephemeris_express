@@ -11,6 +11,7 @@ import { moonFixedState } from './physics/ephemeris.js';
 import { makeSite, azEl } from './physics/topo.js';
 import { visibilityWindows, windowMetrics, nextEvents, altitudeAboveHorizon } from './physics/events.js';
 import { SITES } from './data/sites.js';
+import { maskFor, horizonFnFromMask } from './data/masks.js';
 import { Scene3D } from './ui/scene3d.js';
 import { Timeline } from './ui/timeline.js';
 import { drawSkyPlot } from './ui/skyplot.js';
@@ -52,21 +53,26 @@ function recomputeSite() {
   const s = state.site;
   const site = makeSite(s.lat, s.lon);
   ensureCache();
+  const mask = maskFor(s.id);
+  const horizonFn = mask ? horizonFnFromMask(mask) : () => 0;
+  const opts = { horizonFn };
   const sunEl = [], earthEl = [];
   for (let i = 0; i < cache.times.length; i++) {
     sunEl.push(azEl(site, cache.sun[i]).elDeg);
     earthEl.push(azEl(site, cache.earth[i]).elDeg);
   }
-  const sunWindows = visibilityWindows(site, 'sun', cache.t0, cache.t1);
-  const earthWindows = visibilityWindows(site, 'earth', cache.t0, cache.t1);
+  const sunWindows = visibilityWindows(site, 'sun', cache.t0, cache.t1, opts);
+  const earthWindows = visibilityWindows(site, 'earth', cache.t0, cache.t1, opts);
   derived = {
     siteKey: `${s.lat},${s.lon}`,
     site,
+    mask,
+    horizonFn,
     series: { t0: cache.t0, t1: cache.t1, times: cache.times, sunEl, earthEl },
     sunMetrics: windowMetrics(sunWindows, cache.t0, cache.t1),
     earthMetrics: windowMetrics(earthWindows, cache.t0, cache.t1),
-    nextSun: nextEvents(site, 'sun', state.dateMs, { horizonDays: 60 }),
-    nextEarth: nextEvents(site, 'earth', state.dateMs, { horizonDays: 60 }),
+    nextSun: nextEvents(site, 'sun', state.dateMs, { horizonDays: 60, ...opts }),
+    nextEarth: nextEvents(site, 'earth', state.dateMs, { horizonDays: 60, ...opts }),
   };
 }
 
@@ -102,8 +108,8 @@ function renderMetrics() {
   const st = moonFixedState(new Date(state.dateMs));
   const sun = azEl(site, st.sunKm);
   const earth = azEl(site, st.earthKm);
-  const sunUp = altitudeAboveHorizon(site, 'sun', state.dateMs) > 0;
-  const earthUp = earth.elDeg > 0;
+  const sunUp = altitudeAboveHorizon(site, 'sun', state.dateMs, derived.horizonFn) > 0;
+  const earthUp = earth.elDeg > derived.horizonFn(earth.azDeg);
 
   const card = (title, chipTxt, chipUp, rows) => `
     <div class="mcard">
@@ -118,6 +124,7 @@ function renderMetrics() {
         site: s, sunEl: sun.elDeg, earthEl: earth.elDeg,
         sunMetrics: derived.sunMetrics, earthMetrics: derived.earthMetrics,
         nextSun: derived.nextSun, nextEarth: derived.nextEarth, nowMs: state.dateMs,
+        hasTerrain: !!derived.mask,
       }).map((t) => `<p>${t}</p>`).join('')}
     </div>`;
 
@@ -135,6 +142,9 @@ function renderMetrics() {
         <span>Time (UTC)</span><b>${fmtUTC(state.dateMs)}</b>
       </div>
       ${s.note ? `<div class="approx-note">${s.note}</div>` : ''}
+      <div class="approx-note">${derived.mask
+        ? `⛰️ <b>Terrain horizon active</b> — ${derived.mask.source}. Site elevation ${derived.mask.siteElevM >= 0 ? '+' : ''}${(derived.mask.siteElevM / 1000).toFixed(2)} km.`
+        : 'Smooth-sphere horizon (no terrain mask for this site).'}</div>
     </div>` +
     interpCard +
     card('Sun — power', sunUp ? 'DAYLIGHT' : 'NIGHT', sunUp, [
@@ -169,6 +179,7 @@ function renderSky() {
     sunTrack, earthTrack,
     sunNow: azEl(site, st.sunKm),
     earthNow: azEl(site, st.earthKm),
+    horizonMask: derived.mask ? derived.mask.elevDeg : null,
   });
 }
 
@@ -212,8 +223,8 @@ function setDate(ms, { fromScrub = false } = {}) {
     timeline.setSeries(derived.series);
   } else if (!fromScrub || Date.now() - lastHeavy > 1500) {
     // refresh countdowns occasionally while scrubbing
-    derived.nextSun = nextEvents(derived.site, 'sun', ms, { horizonDays: 60 });
-    derived.nextEarth = nextEvents(derived.site, 'earth', ms, { horizonDays: 60 });
+    derived.nextSun = nextEvents(derived.site, 'sun', ms, { horizonDays: 60, horizonFn: derived.horizonFn });
+    derived.nextEarth = nextEvents(derived.site, 'earth', ms, { horizonDays: 60, horizonFn: derived.horizonFn });
     lastHeavy = Date.now();
   }
   timeline.setCursor(ms);

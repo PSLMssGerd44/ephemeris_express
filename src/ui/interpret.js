@@ -4,7 +4,7 @@
  */
 import { fmtDur } from './format.js';
 
-export function interpret({ site, sunEl, earthEl, sunMetrics, earthMetrics, nextSun, nextEarth, nowMs }) {
+export function interpret({ site, sunEl, earthEl, sunMetrics, earthMetrics, nextSun, nextEarth, nowMs, hasTerrain = false }) {
   const out = [];
   const polar = Math.abs(site.lat) > 80;
 
@@ -24,7 +24,9 @@ export function interpret({ site, sunEl, earthEl, sunMetrics, earthMetrics, next
   if (sunMetrics.longestGapMs > 36e5) {
     out.push(`🔋 Longest darkness in this 30-day window: <b>${fmtDur(sunMetrics.longestGapMs)}</b>. Batteries (and heaters) must survive that — this number drives lander mass.`);
   } else if (polar) {
-    out.push(`🔋 No darkness at all in this window — this is the near-continuous illumination that makes polar peaks prime real estate. (Flat-horizon assumption; real terrain will carve pieces out of this.)`);
+    out.push(hasTerrain
+      ? `🔋 No darkness at all in this window, <b>even with real LOLA terrain blocking the horizon</b> — this near-continuous illumination is exactly why NASA targets polar high ground.`
+      : `🔋 No darkness at all in this window — this is the near-continuous illumination that makes polar peaks prime real estate. (Flat-horizon assumption; real terrain will carve pieces out of this.)`);
   }
 
   // --- Earth / comms ---

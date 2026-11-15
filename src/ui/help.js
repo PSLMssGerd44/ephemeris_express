@@ -49,9 +49,10 @@ const HTML = `
     <h3>Can I trust the numbers?</h3>
     <p>The positions are computed in your browser from the IAU lunar-orientation model (librations included)
     plus a planetary ephemeris, and are <b>validated against NASA/JPL Horizons to ≤0.004°</b> —
-    about 1/130th of the Sun's apparent size. Assumption to know about: the horizon is currently a smooth
-    sphere; real polar terrain (mountains, crater rims) will trim the sunlight numbers. Terrain-aware
-    horizons from NASA LOLA elevation data are the next feature.</p>
+    about 1/130th of the Sun's apparent size. South-polar catalog sites use <b>terrain horizon
+    masks</b> computed from NASA's LOLA laser-altimeter elevation model (80 m/px) — the brown profile on the
+    Local Sky plot is the real mountain skyline blocking the sky. Custom sites and lower-latitude sites use a
+    smooth-sphere horizon (flagged on the site card).</p>
 
     <p class="help-foot">NASA Space Apps Challenge 2026 — <i>Lunar Landing Site Navigator</i>. Open source.</p>
   </div>

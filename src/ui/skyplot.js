@@ -20,7 +20,7 @@ function xy(az, el, cx, cy, R) {
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
 }
 
-export function drawSkyPlot(canvas, { sunTrack, earthTrack, sunNow, earthNow }) {
+export function drawSkyPlot(canvas, { sunTrack, earthTrack, sunNow, earthNow, horizonMask }) {
   const dpr = window.devicePixelRatio || 1;
   const size = canvas.clientWidth || 300;
   canvas.width = size * dpr;
@@ -51,6 +51,32 @@ export function drawSkyPlot(canvas, { sunTrack, earthTrack, sunNow, earthNow }) 
   ctx.setLineDash([3, 4]); ctx.strokeStyle = C.line; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(cx, cy, rOf(EL_MIN, R), 0, 2 * Math.PI); ctx.stroke();
   ctx.setLineDash([]);
+
+  // terrain horizon mask: fill the sky blocked by terrain (between the
+  // terrain horizon line and the outer ring), drawn under the tracks
+  if (horizonMask) {
+    ctx.beginPath();
+    for (let a = 0; a <= 360; a++) {
+      const elv = Math.max(EL_MIN, Math.min(horizonMask[a % 360], 89));
+      const [x, y] = xy(a, elv, cx, cy, R);
+      a === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    for (let a = 360; a >= 0; a--) {
+      const [x, y] = xy(a, EL_MIN, cx, cy, R);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(122, 90, 62, 0.28)';
+    ctx.fill();
+    ctx.beginPath();
+    for (let a = 0; a <= 360; a++) {
+      const elv = Math.max(EL_MIN, Math.min(horizonMask[a % 360], 89));
+      const [x, y] = xy(a, elv, cx, cy, R);
+      a === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#a07a52'; ctx.lineWidth = 1.3;
+    ctx.stroke();
+  }
 
   // cardinal labels
   ctx.fillStyle = C.dim; ctx.font = '11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
