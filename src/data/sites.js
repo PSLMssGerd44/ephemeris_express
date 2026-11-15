@@ -2,25 +2,25 @@
  * Curated landing-site catalog.
  *
  * Coordinates for historic/CLPS landings are the published landing points.
- * Artemis III entries are REGION CENTERS (each region is ~15x15 km) and are
+ * Artemis IV entries are REGION CENTERS (each region is ~15x15 km) and are
  * flagged approx: true — NASA selects specific sites within regions based on
  * launch timing. Sources: NASA Artemis III candidate-regions release (2022),
  * mission press kits, LROC coordinates for historic sites.
  */
 
 export const SITES = [
-  // --- Artemis III candidate regions (south pole) ---
-  { id: 'shackleton-peak', name: 'Shackleton Rim crest', lat: -89.7787, lon: 203.7574, group: 'Artemis III regions', approx: false,
-    note: 'Highest point of Shackleton’s rim, snapped from LOLA 80 m data (+1.74 km). Adjacent to the Artemis III “Peak near Shackleton” region.' },
-  { id: 'connecting-ridge', name: 'Connecting Ridge', lat: -89.45, lon: 222.8, group: 'Artemis III regions', approx: true,
+  // --- Artemis IV candidate regions (south pole) ---
+  { id: 'shackleton-peak', name: 'Shackleton Rim crest', lat: -89.7787, lon: 203.7574, group: 'Artemis IV regions', approx: false,
+    note: 'Highest point of Shackleton’s rim, snapped from LOLA 80 m data (+1.74 km). Adjacent to the Artemis IV “Peak near Shackleton” region.' },
+  { id: 'connecting-ridge', name: 'Connecting Ridge', lat: -89.45, lon: 222.8, group: 'Artemis IV regions', approx: true,
     note: 'High ridge linking Shackleton and de Gerlache (+1.96 km here) — among the most illuminated terrain on the Moon.' },
-  { id: 'malapert-massif', name: 'Malapert Massif summit', lat: -85.9873, lon: 2.0888, group: 'Artemis III regions', approx: false,
+  { id: 'malapert-massif', name: 'Malapert Massif summit', lat: -85.9873, lon: 2.0888, group: 'Artemis IV regions', approx: false,
     note: 'Summit snapped from LOLA data (+5.17 km). Everything is downhill from here: near-continuous Sun and strong Earth view for DTE comms.' },
-  { id: 'de-gerlache-rim', name: 'de Gerlache Rim crest', lat: -88.6651, lon: 291.5959, group: 'Artemis III regions', approx: false,
+  { id: 'de-gerlache-rim', name: 'de Gerlache Rim crest', lat: -88.6651, lon: 291.5959, group: 'Artemis IV regions', approx: false,
     note: 'Highest point of de Gerlache’s rim (LOLA-snapped, +1.81 km), adjacent to permanently shadowed interior.' },
-  { id: 'nobile-rim-1', name: 'Nobile Rim 1', lat: -85.2, lon: 36.5, group: 'Artemis III regions', approx: true,
+  { id: 'nobile-rim-1', name: 'Nobile Rim 1', lat: -85.2, lon: 36.5, group: 'Artemis IV regions', approx: true,
     note: 'High ground near Nobile crater (+6.8 km here per LOLA).' },
-  { id: 'amundsen-rim', name: 'Amundsen Rim crest', lat: -82.886, lon: 77.9581, group: 'Artemis III regions', approx: false,
+  { id: 'amundsen-rim', name: 'Amundsen Rim crest', lat: -82.886, lon: 77.9581, group: 'Artemis IV regions', approx: false,
     note: 'Highest point of Amundsen’s rim (LOLA-snapped, +4.26 km); large PSR on the crater floor below.' },
 
   // --- CLPS & recent robotic missions ---
