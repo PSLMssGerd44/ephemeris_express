@@ -15,6 +15,8 @@ import { Scene3D } from './ui/scene3d.js';
 import { Timeline } from './ui/timeline.js';
 import { drawSkyPlot } from './ui/skyplot.js';
 import { fmtDeg, fmtDur, fmtUTC, msToLocalInput, localInputToMs } from './ui/format.js';
+import { interpret } from './ui/interpret.js';
+import { initHelp } from './ui/help.js';
 
 const WINDOW_DAYS = 30;
 const SAMPLE_MIN = 20;
@@ -106,7 +108,17 @@ function renderMetrics() {
   const card = (title, chipTxt, chipUp, rows) => `
     <div class="mcard">
       <div class="ttl"><b>${title}</b><span class="chip ${chipUp ? 'up' : 'down'}">${chipTxt}</span></div>
-      <div class="kv">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>
+      <div class="kv">${rows.map(([k, v, tip]) => `<span${tip ? ` title="${tip}"` : ''}>${k}</span><b>${v}</b>`).join('')}</div>
+    </div>`;
+
+  const interpCard = `
+    <div class="mcard interp">
+      <div class="ttl"><b>What this means, here &amp; now</b></div>
+      ${interpret({
+        site: s, sunEl: sun.elDeg, earthEl: earth.elDeg,
+        sunMetrics: derived.sunMetrics, earthMetrics: derived.earthMetrics,
+        nextSun: derived.nextSun, nextEarth: derived.nextEarth, nowMs: state.dateMs,
+      }).map((t) => `<p>${t}</p>`).join('')}
     </div>`;
 
   const nextSunEvt = sunUp
@@ -124,19 +136,20 @@ function renderMetrics() {
       </div>
       ${s.note ? `<div class="approx-note">${s.note}</div>` : ''}
     </div>` +
+    interpCard +
     card('Sun — power', sunUp ? 'DAYLIGHT' : 'NIGHT', sunUp, [
-      ['Elevation', fmtDeg(sun.elDeg, 2)],
-      ['Azimuth', fmtDeg(sun.azDeg, 1)],
-      nextSunEvt,
-      [`Lit, ${WINDOW_DAYS}d window`, `${(derived.sunMetrics.fraction * 100).toFixed(1)}%`],
-      ['Longest darkness', fmtDur(derived.sunMetrics.longestGapMs)],
+      ['Elevation', fmtDeg(sun.elDeg, 2), 'Height above the horizon: 0° = on the horizon, 90° = overhead. Flat solar panel output scales with sin(elevation).'],
+      ['Azimuth', fmtDeg(sun.azDeg, 1), 'Compass direction: 0° = north, 90° = east, 180° = south, 270° = west.'],
+      [...nextSunEvt, 'Countdown to the next sunrise/sunset, using the upper edge of the solar disk (the Moon has no atmosphere, so no refraction).'],
+      [`Lit, ${WINDOW_DAYS}d window`, `${(derived.sunMetrics.fraction * 100).toFixed(1)}%`, 'Fraction of the 30-day analysis window with the Sun above the horizon — the site’s solar energy budget.'],
+      ['Longest darkness', fmtDur(derived.sunMetrics.longestGapMs), 'Longest continuous night in the window — the battery/heater endurance a lander must carry.'],
     ]) +
     card('Earth — DTE comms', earthUp ? 'LINK POSSIBLE' : 'NO DIRECT LINK', earthUp, [
-      ['Elevation', fmtDeg(earth.elDeg, 2)],
-      ['Azimuth', fmtDeg(earth.azDeg, 1)],
-      nextEarthEvt,
-      [`Visible, ${WINDOW_DAYS}d window`, `${(derived.earthMetrics.fraction * 100).toFixed(1)}%`],
-      ['Longest comms gap', fmtDur(derived.earthMetrics.longestGapMs)],
+      ['Elevation', fmtDeg(earth.elDeg, 2), 'Earth’s height above the site’s horizon. Above 0° a direct-to-Earth radio link is geometrically possible; higher is a cleaner link.'],
+      ['Azimuth', fmtDeg(earth.azDeg, 1), 'Compass direction toward Earth — where the high-gain antenna must point.'],
+      [...nextEarthEvt, 'Earth rises and sets at polar sites over weeks, driven by lunar librations (the Moon’s slow ±7–8° wobble relative to Earth).'],
+      [`Visible, ${WINDOW_DAYS}d window`, `${(derived.earthMetrics.fraction * 100).toFixed(1)}%`, 'Fraction of the window with Earth above the horizon — how often direct communication is possible at all.'],
+      ['Longest comms gap', fmtDur(derived.earthMetrics.longestGapMs), 'Longest stretch with no direct Earth link — the autonomy the mission must plan for (or cover with a relay satellite).'],
     ]);
 }
 
@@ -243,6 +256,7 @@ function tick(t) {
 }
 
 // ---------- boot ----------
+initHelp(el('helpBtn'));
 buildSiteList();
 scene.focusSite(state.site.lat, state.site.lon);
 renderAll({ heavy: true });

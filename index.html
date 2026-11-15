@@ -13,7 +13,8 @@
         <span class="badge" title="Max residual vs JPL Horizons (DE441): 0.004° az / 0.001° el — see docs/validation.md">validated vs JPL Horizons ≤0.004°</span>
       </div>
       <div class="timectl">
-        <input type="datetime-local" id="dateInput" />
+        <input type="datetime-local" id="dateInput" title="All times are UTC" />
+        <span class="utc-tag" title="All times are UTC">UTC</span>
         <button id="nowBtn" title="Jump to current time">Now</button>
         <button id="playBtn" title="Animate time">▶</button>
         <select id="speedSel" title="Animation speed">
@@ -21,6 +22,7 @@
           <option value="21600" selected>6 h/s</option>
           <option value="86400">1 d/s</option>
         </select>
+        <button id="helpBtn" class="help-btn" title="Guide, how-to and glossary">?</button>
       </div>
     </header>
 
@@ -37,7 +39,7 @@
 
     <main id="scene-wrap">
       <canvas id="scene3d"></canvas>
-      <div class="scene-note">Directions of Sun &amp; Earth are true for the selected time (distances compressed). The terminator you see is real.</div>
+      <div class="scene-note">The day/night line (<b>terminator</b>) is computed from the true Sun position for the selected time — what you see lit really is lit. Sun &amp; Earth are shown in their true <i>directions</i>; distances are compressed to fit. Green line = direct radio link to Earth possible; red = Earth below the site's horizon. Drag to orbit, scroll to zoom. Press <b>?</b> for the full guide.</div>
     </main>
 
     <section id="rightpanel">
